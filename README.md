@@ -1,0 +1,1 @@
+mongo_uri="mongodb+srv://satyam:iq-quotient@iq-quotient.yzukp72.mongodb.net/?retryWrites=true&w=majority&appName=iq-quotient"

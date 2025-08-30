@@ -1,0 +1,63 @@
+iq_quotient/
+├─ client/
+│  ├─ public/
+│  │  ├─ realLogo.svg
+│  │  ├─ vector.svg
+│  │  ├─ veeeeeec.png
+│  │  └─ vite.svg
+│  ├─ src/
+│  │  ├─ assets/
+│  │  │  └─ react.svg
+│  │  ├─ components/
+│  │  │  ├─ ui/
+│  │  │  │  ├─ button.jsx
+│  │  │  │  ├─ card.jsx
+│  │  │  │  └─ input.jsx
+│  │  │  ├─ AnalysisChart.jsx
+│  │  │  └─ Navbar.jsx
+│  │  ├─ lib/
+│  │  │  └─ utils.js
+│  │  ├─ pages/
+│  │  │  ├─ AutoResume.jsx
+│  │  │  ├─ CareerPathfinder.jsx
+│  │  │  ├─ FocusDetector.jsx
+│  │  │  ├─ Interview.jsx
+│  │  │  ├─ PracticeCoding.jsx
+│  │  │  ├─ SpeechToText.jsx
+│  │  │  └─ TextToSpeechPlayer.jsx
+│  │  ├─ services/
+│  │  │  └─ api.js
+│  │  ├─ App.css
+│  │  ├─ App.jsx
+│  │  ├─ index.css
+│  │  ├─ main.jsx
+│  │  └─ Routings.jsx
+│  ├─ .gitignore
+│  ├─ eslint.config.js
+│  ├─ index.html
+│  ├─ package-lock.json
+│  ├─ package.json
+│  ├─ postcss.config.js
+│  ├─ README.md
+│  ├─ tailwind.config.js
+│  └─ vite.config.js
+├─ server/
+│  ├─ config/
+│  │  └─ db.js
+│  ├─ controllers/
+│  │  ├─ authController.js
+│  │  └─ interviewController.js
+│  ├─ middleware/
+│  │  └─ authMiddleware.js
+│  ├─ models/
+│  │  ├─ InterviewStats.js
+│  │  └─ User.js
+│  ├─ routes/
+│  │  ├─ authRoutes.js
+│  │  └─ interviewRoutes.js
+│  ├─ .env
+│  ├─ package-lock.json
+│  ├─ package.json
+│  └─ server.js
+├─ .gitignore
+└─ README.md
