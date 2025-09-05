@@ -1,3 +1,4 @@
+// controllers/interviewController.js
 const InterviewStats = require("../models/InterviewStats");
 
 // @desc Save interview stats
@@ -5,23 +6,33 @@ const InterviewStats = require("../models/InterviewStats");
 // @access Private
 exports.saveStats = async (req, res) => {
   try {
-    const { codingScore, communicationScore, focusScore, notes } = req.body;
+    const { jobDescription, focusPercent, narrative, scores, interviewData } = req.body;
 
+    // Calculate an overall score from the detailed scores
+    const scoreValues = Object.values(scores);
     const overallScore = Math.round(
-      (codingScore + communicationScore + focusScore) / 3
+      scoreValues.reduce((sum, score) => sum + score, 0) / scoreValues.length
     );
 
     const stats = await InterviewStats.create({
       user: req.user._id,
-      codingScore,
-      communicationScore,
-      focusScore,
+      jobDescription,
+      focusPercent,
+      narrative,
+      scores: {
+        technicalAccuracy: scores["Technical Accuracy"],
+        communicationClarity: scores["Communication & Clarity"],
+        confidenceLevel: scores["Confidence Level"],
+        timeManagement: scores["Time Management"],
+        completeness: scores["Completeness of Answers"],
+      },
       overallScore,
-      notes,
+      interviewData,
     });
 
     res.status(201).json(stats);
   } catch (error) {
+    console.error("Error saving stats:", error);
     res.status(500).json({ message: "Server error" });
   }
 };

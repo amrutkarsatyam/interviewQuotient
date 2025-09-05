@@ -1,3 +1,4 @@
+// src/components/Navbar.jsx
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -11,15 +12,24 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="flex gap-4 p-4 bg-gray-800 text-white">
-      <Link to="/">Auth</Link>
-      {token && <Link to="/stats">Stats</Link>}
-      {token && <Link to="/interview">Interview</Link>}
+    <nav className="flex items-center gap-6 p-4 bg-gray-900 text-white shadow-md">
+      <Link to="/" className="font-bold text-lg">AI Prep</Link>
+      
+      <div className="flex gap-4">
+        {token && <Link to="/interview" className="hover:text-cyan-400">Interview</Link>}
+        {token && <Link to="/practice" className="hover:text-cyan-400">Practice</Link>}
+        {token && <Link to="/careerpath" className="hover:text-cyan-400">Career Path</Link>}
+        {token && <Link to="/autoresume" className="hover:text-cyan-400">AI Resume</Link>}
+        {token && <Link to="/stats" className="hover:text-cyan-400">Stats</Link>}
+      </div>
+
       {token ? (
-        <button onClick={logout} className="ml-auto underline">
+        <button onClick={logout} className="ml-auto underline hover:text-red-400">
           Logout
         </button>
-      ) : null}
+       ) : (
+        <Link to="/" className="ml-auto underline hover:text-cyan-400">Login</Link>
+       )}
     </nav>
   );
 }

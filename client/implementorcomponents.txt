@@ -1,0 +1,700 @@
+api.js
+
+
+import axios from "axios";
+
+// Initialize Axios with the base URL for your backend
+const API = axios.create({ baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api"});
+
+/**
+ * Interceptor to automatically add the JWT token to every outgoing request.
+ * This ensures that the backend can identify and authenticate the user.
+ */
+API.interceptors.request.use((req) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    req.headers.Authorization = `Bearer ${token}`;
+  }
+  return req;
+});
+
+/**
+ * Interceptor to handle responses. If a 401 Unauthorized error occurs,
+ * it means the token is invalid or expired, so we log the user out.
+ */
+API.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem("token");
+      // Redirect to the login page
+      window.location.href = "/";
+    }
+    return Promise.reject(err);
+  }
+);
+
+// --- User Authentication ---
+export const register = (formData) => API.post("/auth/register", formData);
+export const login = (formData) => API.post("/auth/login", formData);
+export const getProfile = () => API.get("/auth/profile");
+
+// --- Resume & Learning Path ---
+/**
+ * Saves generated resume content to the user's profile.
+ * @param {object} resumeData - { githubUsername, generatedContent, type }
+ */
+export const saveResume = (resumeData) => API.post("/profile/resume", resumeData);
+
+/**
+ * Saves a generated learning path to the user's history.
+ * @param {object} pathData - { jobDescription, resumeSummary, learningPath }
+ */
+export const saveLearningPath = (pathData) => API.post("/profile/learning-path", pathData);
+
+
+// --- Interview & Coding ---
+/**
+ * Saves a complete interview session, including questions, answers, and AI analysis.
+ * @param {object} sessionData - The full interview session object.
+ */
+export const saveInterviewSession = (sessionData) => API.post("/interviews", sessionData);
+
+/**
+ * Saves the result of a single coding problem submission.
+ * @param {object} submissionData - { problemSlug, title, userCode, status, hint, etc. }
+ */
+export const saveCodingSubmission = (submissionData) => API.post("/coding/submission", submissionData);
+
+
+// --- Performance Dashboard ---
+/**
+ * Fetches all performance-related data for the logged-in user.
+ * This could be a single endpoint that aggregates data on the backend.
+ */
+export const getPerformanceData = () => API.get("/performance/dashboard");
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import React, { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect, forwardRef } from 'react';
+import { jsPDF } from 'jspdf';
+import ModelClient, { isUnexpected } from "@azure-rest/ai-inference";
+import { AzureKeyCredential } from "@azure/core-auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { LoaderCircle, FileWarning, Terminal, ArrowLeft, Play, Loader2, AlertTriangle, CheckCircle2, Lightbulb, ChevronRight, Menu, X, FaFileUpload, FaPaperPlane, FaTimes } from "lucide-react";
+import { Textarea, Chip, Link } from '@nextui-org/react';
+import { motion, AnimatePresence } from 'framer-motion';
+import pdfToText from 'react-pdftotext';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useGSAP } from '@gsap/react';
+import { SiGooglegemini } from 'react-icons/si';
+import { FaceMesh } from "@mediapipe/face_mesh";
+import { Camera } from "@mediapipe/camera_utils";
+import DOMPurify from "dompurify";
+import { cn } from "@/lib/utils";
+import { saveResume, saveLearningPath, saveInterviewSession, saveCodingSubmission, getPerformanceData } from "../services/api"; // API
+// --- MOCK API FUNCTIONS ---
+// In a real app, these would be in a separate file (e.g., src/services/api.js)
+// and would make actual HTTP requests to your backend.
+
+const mockApi = (data, delay = 500) => new Promise(resolve => setTimeout(() => resolve(data), delay));
+
+const saveResume = (resumeData) => {
+  console.log('SAVING RESUME:', resumeData);
+  return mockApi({ success: true, message: 'Resume saved successfully!' });
+};
+
+const saveLearningPath = (pathData) => {
+  console.log('SAVING LEARNING PATH:', pathData);
+  return mockApi({ success: true, message: 'Learning path saved!' });
+};
+
+const saveInterviewSession = (sessionData) => {
+  console.log('SAVING INTERVIEW SESSION:', sessionData);
+  return mockApi({ success: true, message: 'Interview session saved!' });
+};
+
+const saveCodingSubmission = (submissionData) => {
+  console.log('SAVING CODING SUBMISSION:', submissionData);
+  return mockApi({ success: true, message: 'Submission saved!' });
+};
+// --- END MOCK API ---
+
+
+// ============================================================================
+// COMPONENT 1: AutoResume
+// ============================================================================
+
+export const AutoResume = () => {
+  const [username, setUsername] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState('');
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [error, setError] = useState('');
+  const [saveStatus, setSaveStatus] = useState(''); // New state for save status
+
+  const apiKey = import.meta.env.VITE_RESUME_TOKEN;
+
+  const handleGenerateResume = async () => {
+    if (!username) {
+      setError('Please enter a GitHub username.');
+      return;
+    }
+    if (!apiKey) {
+      setError('API key is not configured.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setPdfUrl(null);
+    setProgress('Fetching repository list...');
+    setSaveStatus('');
+
+    try {
+      // Steps 1-4: Fetching data and calling AI (no changes)
+      const repoRes = await fetch(`https://api.github.com/users/${username}/repos?sort=pushed&per_page=100`);
+      if (!repoRes.ok) throw new Error(`Failed to fetch repositories for user: ${username}`);
+      let repos = await repoRes.json();
+      repos = repos.filter(repo => !repo.fork).slice(0, 5);
+      if (repos.length === 0) throw new Error('This user has no public, non-forked repositories.');
+
+      const readmePromises = repos.map(repo => {
+        setProgress(`Fetching README for: ${repo.name}`);
+        const readmeUrl = `https://raw.githubusercontent.com/${repo.full_name}/${repo.default_branch}/README.md`;
+        return fetch(readmeUrl)
+          .then(res => res.ok ? res.text() : Promise.resolve(null))
+          .then(text => ({ repoName: repo.name, text }));
+      });
+      const readmeResults = await Promise.all(readmePromises);
+
+      const characterLimit = 2000;
+      const aiInput = readmeResults
+        .filter(r => r.text)
+        .map(r => `Project: ${r.repoName}\nREADME:\n${r.text.substring(0, characterLimit)}...`)
+        .join('\n\n---\n\n');
+      if (!aiInput) throw new Error("Could not find any README files in the user's top 5 repositories.");
+
+      setProgress('AI is generating the resume summary...');
+      const client = ModelClient("https://models.github.ai/inference", new AzureKeyCredential(apiKey));
+      const systemPrompt = `You are an expert technical resume writer...`;
+      const response = await client.path("/chat/completions").post({
+        body: {
+          model: "xai/grok-3",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: aiInput },
+          ],
+          max_tokens: 1024,
+        },
+      });
+      if (isUnexpected(response)) throw new Error(response.body.error?.message || "An error occurred with the AI service.");
+      const aiContent = response.body.choices[0].message.content;
+
+      // Step 5: Generate PDF (no changes)
+      setProgress('Formatting PDF...');
+      const doc = new jsPDF();
+      const margin = 15;
+      const maxWidth = doc.internal.pageSize.getWidth() - margin * 2;
+      let y = margin;
+      const writeText = (text, options = {}) => {
+        const { size = 10, style = 'normal', indent = 0, lineHeight = 5 } = options;
+        doc.setFontSize(size).setFont('helvetica', style);
+        const lines = doc.splitTextToSize(text, maxWidth - indent);
+        for (const line of lines) {
+          if (y + lineHeight > doc.internal.pageSize.getHeight() - margin) {
+            doc.addPage();
+            y = margin;
+          }
+          doc.text(line, margin + indent, y);
+          y += lineHeight;
+        }
+      };
+      writeText(username, { size: 24, style: 'bold', lineHeight: 10 });
+      writeText("Project Showcase", { size: 16, style: 'normal', lineHeight: 8 });
+      y += 4;
+      aiContent.split('\n').forEach(line => {
+        if (!line.trim()) return;
+        if (line.startsWith('### ')) {
+          y += 4;
+          writeText(line.substring(4), { size: 14, style: 'bold', lineHeight: 7 });
+        } else if (line.startsWith('* ') || line.startsWith('- ')) {
+          writeText(`• ${line.substring(2)}`, { indent: 5 });
+        } else {
+          writeText(line);
+        }
+      });
+      
+      setPdfUrl(doc.output('bloburl'));
+
+      // *** NEW: Step 6 - Save resume to backend ***
+      setProgress('Saving to your profile...');
+      try {
+        await saveResume({
+          githubUsername: username,
+          generatedContent: aiContent,
+          type: 'projects_summary'
+        });
+        setSaveStatus('Resume summary saved to your profile!');
+      } catch (saveError) {
+        console.error("Failed to save resume:", saveError);
+        setSaveStatus('Could not save resume to profile. Please try again.');
+      }
+      // ********************************************
+
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+      setProgress('');
+    }
+  };
+
+  return (
+    <div className="bg-slate-900 text-white min-h-screen p-4 sm:p-8 flex flex-col items-center">
+      <div className="w-full max-w-3xl mx-auto">
+        <Card className="bg-slate-950/50 border-slate-800 backdrop-blur-sm">
+           <CardHeader className="text-center">
+            <CardTitle className="text-3xl sm:text-4xl font-bold tracking-tight bg-gradient-to-r from-purple-400 to-cyan-400 text-transparent bg-clip-text">
+              AI Resume Project Generator
+            </CardTitle>
+            <CardDescription className="text-slate-400 pt-2">
+              Enter a GitHub username to generate a resume-ready project summary using AI.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-2 mt-4">
+              <Input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter GitHub username (e.g., 'torvalds')"
+                className="bg-slate-900 border-slate-700 focus:ring-cyan-500"
+                disabled={loading}
+              />
+              <Button onClick={handleGenerateResume} disabled={loading || !apiKey} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold">
+                {loading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                {loading ? 'Generating...' : 'Generate PDF'}
+              </Button>
+            </div>
+
+            {/* Status Messages */}
+            {saveStatus && (
+              <Alert className="mt-4 bg-green-950/50 border-green-500/30">
+                <CheckCircle2 className="h-4 w-4 text-green-400" />
+                <AlertTitle>Success</AlertTitle>
+                <AlertDescription>{saveStatus}</AlertDescription>
+              </Alert>
+            )}
+             {loading && progress && (
+               <Alert className="mt-4 bg-slate-900 border-slate-800">
+                <Terminal className="h-4 w-4 text-cyan-400" />
+                <AlertTitle>In Progress...</AlertTitle>
+                <AlertDescription>{progress}</AlertDescription>
+              </Alert>
+            )}
+            {error && (
+              <Alert variant="destructive" className="mt-4">
+                <FileWarning className="h-4 w-4" />
+                <AlertTitle>An Error Occurred</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+
+        {pdfUrl && (
+          <div className="mt-8">
+            <Card className="bg-slate-950/50 border-slate-800">
+              <CardHeader>
+                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <CardTitle className="text-2xl text-slate-100">Your AI-Powered Resume</CardTitle>
+                        <CardDescription className="text-slate-400">View your generated PDF below or download it.</CardDescription>
+                    </div>
+                    <a href={pdfUrl} download={`${username}-ai-resume.pdf`}>
+                        <Button className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto">
+                            Download PDF
+                        </Button>
+                    </a>
+                 </div>
+              </CardHeader>
+              <CardContent>
+                  <iframe
+                      src={pdfUrl}
+                      title="AI Generated Resume"
+                      className="w-full rounded-md border border-slate-700"
+                      style={{ height: '80vh' }}
+                  />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
+// ============================================================================
+// COMPONENT 2: CareerPathfinder
+// ============================================================================
+gsap.registerPlugin(ScrollTrigger);
+const gradients = ['from-purple-500 to-indigo-500', 'from-sky-500 to-cyan-500', 'from-emerald-500 to-lime-500', 'from-amber-500 to-orange-500', 'from-rose-500 to-pink-500'];
+const LoadingIndicator = () => (
+  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col items-center gap-4">
+    <div className="relative">
+      <SiGooglegemini className="text-6xl text-cyan-400 animate-[spin_4s_linear_infinite]" />
+      <div className="absolute inset-0 rounded-full border-4 border-purple-500/50 animate-[spin_3s_linear_infinite_reverse]"></div>
+    </div>
+    <p className="text-lg font-semibold tracking-wider text-white/80">Analyzing your future...</p>
+  </motion.div>
+);
+
+export function CareerPathfinder() {
+  const [jobDescription, setJobDescription] = useState('');
+  const [resumeText, setResumeText] = useState('');
+  const [resumeFile, setResumeFile] = useState(null);
+  const [learningPath, setLearningPath] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const main = useRef(null);
+  const timelineRef = useRef(null);
+  const timelineDotsRef = useRef([]);
+
+  const client = useMemo(() => {
+    const apiKey = import.meta.env.VITE_RESUME_TOKEN;
+    if (!apiKey) {
+      setError('AI API Key is missing.');
+      return null;
+    }
+    return ModelClient('https://models.github.ai/inference', new AzureKeyCredential(apiKey));
+  }, []);
+
+  useGSAP(() => {
+    if (learningPath.length > 0) {
+      const timeline = timelineRef.current;
+      gsap.to(timeline.querySelector('.timeline-line'), { scaleY: 1, scrollTrigger: { trigger: timeline, start: 'top 60%', end: 'bottom 80%', scrub: 1 }, ease: 'none' });
+      gsap.fromTo(timelineDotsRef.current, { scale: 0 }, { scale: 1, stagger: 0.2, scrollTrigger: { trigger: timeline, start: 'top 50%', end: 'bottom 90%', scrub: 1 }, ease: 'back.out(1.7)' });
+    }
+  }, { scope: main, dependencies: [learningPath] });
+
+  useEffect(() => {
+    if (learningPath.length > 0 && timelineRef.current) {
+      timelineRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [learningPath]);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    setError('');
+    setResumeText('');
+    setLearningPath([]);
+    setResumeFile(file);
+
+    try {
+      const text = await pdfToText(file);
+      setResumeText(text);
+    } catch (err) {
+      setError('Could not extract text from the PDF.');
+      setResumeFile(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const clearResume = () => {
+    setResumeFile(null);
+    setResumeText('');
+    const fileInput = document.getElementById('resume-upload');
+    if (fileInput) fileInput.value = '';
+  }
+
+  const generateLearningPath = async () => {
+    if (!client || !resumeText || !jobDescription) {
+      setError('Please upload a resume and provide a job description.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    setLearningPath([]);
+
+    const systemPrompt = `You are an expert career coach AI... Respond ONLY with a valid JSON array of objects...`;
+    const userInput = `Resume:\n---\n${resumeText}\n---\n\nJob Description:\n---\n${jobDescription}\n---`;
+
+    try {
+      const response = await client.path('/chat/completions').post({
+        body: {
+          model: 'xai/grok-3',
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userInput }],
+          max_tokens: 2048,
+          temperature: 0.5,
+          response_format: { type: 'json_object' },
+        },
+      });
+
+      if (isUnexpected(response)) {
+        throw new Error(response.body.error?.message || 'Unexpected AI service error.');
+      }
+
+      const aiContent = response.body.choices[0].message.content;
+      const parsedPath = JSON.parse(aiContent);
+      const pathArray = Array.isArray(parsedPath) ? parsedPath : parsedPath.learningPath || [];
+      
+      timelineDotsRef.current = [];
+      setLearningPath(pathArray);
+      
+      // *** NEW: Save learning path to backend ***
+      if (pathArray.length > 0) {
+        try {
+          await saveLearningPath({
+            jobDescription: jobDescription.substring(0, 500), // Truncate for storage
+            resumeSummary: resumeText.substring(0, 500),
+            learningPath: pathArray,
+          });
+          // Optionally show a success message to the user
+        } catch (saveError) {
+          console.error("Failed to save learning path:", saveError);
+          // Don't block the user, just log the error
+        }
+      }
+      // ******************************************
+
+    } catch (err) {
+      setError(err.message || 'AI service communication failed.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+     <div ref={main} className="relative min-h-screen bg-[#0D1117] text-white overflow-x-hidden font-sans">
+       {/* UI remains the same, no changes needed for rendering */}
+       <header className="text-center mb-16">
+          <motion.h1
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, type: 'spring' }}
+            className="text-4xl sm:text-6xl font-black bg-gradient-to-r from-indigo-400 via-sky-400 to-emerald-400 bg-clip-text text-transparent drop-shadow-lg"
+          >
+            AI Career Path Generator
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="text-lg mt-4 text-slate-400 max-w-2xl mx-auto"
+          >
+            Bridge the gap between your resume and your dream job. Get a personalized, step-by-step learning plan in seconds.
+          </motion.p>
+        </header>
+     </div>
+  );
+}
+
+
+// ============================================================================
+// COMPONENT 3: Interview
+// ============================================================================
+
+// AI & Speech Helpers remain the same...
+class SpeechManager { /* ...class content as before... */ }
+const useGSAPAnimate = (key) => { /* ...hook content as before... */ };
+const FocusBadge = ({ status, percent }) => { /* ...component content as before... */ };
+
+
+export function Interview() {
+  // All state and refs remain the same...
+  const [jobDescription, setJobDescription] = useState("");
+  const [interviewState, setInterviewState] = useState("idle");
+  const [questions, setQuestions] = useState([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [interviewData, setInterviewData] = useState([]);
+  const [currentTranscript, setCurrentTranscript] = useState("");
+  const [codeAnswer, setCodeAnswer] = useState("");
+  const [analysisResult, setAnalysisResult] = useState("");
+  const [analysisScores, setAnalysisScores] = useState(null);
+  const [error, setError] = useState(null);
+
+  const handleStartInterview = async () => {
+    // ... same logic
+  };
+
+  // *** MODIFIED: This function now also saves the session to the backend ***
+  const handleGetAnalysisAndSave = useCallback(async () => {
+    // This is the data that will be sent for both analysis and saving
+    const finalSessionData = {
+      jobDescription,
+      focusPercent,
+      interviewData,
+    };
+
+    try {
+      const result = await getAnalysisFromAI(finalSessionData);
+      setAnalysisResult(result.narrative);
+      setAnalysisScores(result.scores);
+
+      // *** NEW: Save the complete session data to the backend ***
+      try {
+        await saveInterviewSession({
+          ...finalSessionData,
+          analysis: {
+            narrative: result.narrative,
+            scores: result.scores,
+          }
+        });
+        // Optionally show a "Session Saved" message
+      } catch (saveError) {
+        console.error("Failed to save interview session:", saveError);
+        setError("Analysis complete, but failed to save session to your history.");
+      }
+      // *******************************************************
+
+      setInterviewState("finished");
+    } catch (err) {
+      console.error(err);
+      setError("Failed to get analysis from AI.");
+      setInterviewState("finished"); // Still move to finished state to show results
+    }
+  }, [jobDescription, focusPercent, interviewData]);
+
+  useEffect(() => {
+    if (interviewState === "analyzing") {
+      handleGetAnalysisAndSave();
+    }
+  }, [interviewState, handleGetAnalysisAndSave]);
+  
+  // All other functions (resetInterview, render helpers, etc.) remain the same
+  // ...
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-6 font-sans p-6 bg-neutral-950 min-h-screen text-neutral-100">
+      {/* The JSX and rendering logic remains identical */}
+    </div>
+  );
+}
+
+
+// ============================================================================
+// COMPONENT 4: PracticeCodingAnimated
+// ============================================================================
+
+// UI primitives and topics list remain the same
+const Button = forwardRef(/* ... */);
+const Card = forwardRef(/* ... */);
+const Textarea = forwardRef(/* ... */);
+const Badge = ({ /* ... */ });
+const topics = [ /* ... */ ];
+
+function LeftPanel({ /* ... */ }) { /* ...component content as before... */ }
+function ProblemView({ /* ... */ }) { /* ...component content as before... */ }
+
+export function PracticeCodingAnimated() {
+  // All state remains the same
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  const [problemsForTopic, setProblemsForTopic] = useState([]);
+  const [isTopicListLoading, setIsTopicListLoading] = useState(false);
+  const [topicListError, setTopicListError] = useState(null);
+  const [selectedProblemSlug, setSelectedProblemSlug] = useState(null);
+  const [currentProblem, setCurrentProblem] = useState(null);
+  const [isLoadingProblem, setIsLoadingProblem] = useState(false);
+  const [problemError, setProblemError] = useState(null);
+  const [userCode, setUserCode] = useState("");
+  const [aiResponse, setAiResponse] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // All handlers except handleSubmit remain the same
+  const handleSelectTopic = (topic) => { /* ... */ };
+  const handleBackToTopics = () => { /* ... */ };
+
+  useEffect(() => {
+    // ... logic for fetching problem details is unchanged
+  }, [selectedProblemSlug]);
+
+  // *** MODIFIED: handleSubmit now saves the submission result ***
+  const handleSubmit = async () => {
+    if (!currentProblem) return;
+    setIsSubmitting(true);
+    setAiResponse(null);
+    setSubmitError(null);
+    
+    // AI interaction logic remains the same...
+    const token = import.meta.env.VITE_GITHUB_TOKEN;
+    if (!token) { /* ... */ return; }
+    const systemPrompt = `You are an expert programming judge...`;
+    const problemDescription = new DOMParser().parseFromString(currentProblem.question, "text/html").documentElement.textContent;
+    const userPrompt = `Problem Title: ${currentProblem.title}...`;
+    const client = ModelClient("https://models.github.ai/inference", new AzureKeyCredential(token));
+
+    try {
+      const response = await client.path("/chat/completions").post({ /* ... */ });
+      if (isUnexpected(response)) throw new Error(response.body.error?.message || "API error");
+      const content = response.body.choices?.[0]?.message?.content;
+      if (!content) throw new Error("The AI returned an empty response.");
+
+      const parsedResponse = JSON.parse(content); // Assume it parses correctly
+      setAiResponse(parsedResponse);
+
+      // *** NEW: Save the coding submission to the backend ***
+      try {
+        await saveCodingSubmission({
+          problemSlug: currentProblem.titleSlug,
+          title: currentProblem.title,
+          difficulty: currentProblem.difficulty,
+          userCode,
+          status: parsedResponse.status, // 'Correct Answer', 'Wrong Answer', etc.
+          hint: parsedResponse.hint || null,
+          analysis: parsedResponse.analysis || null,
+          timeComplexity: parsedResponse.time_complexity || null,
+        });
+      } catch (saveError) {
+        console.error("Failed to save submission:", saveError);
+        // Non-critical error, so we just log it and don't bother the user.
+      }
+      // ******************************************************
+
+    } catch (err) {
+      console.error("Submission Error:", err);
+      setSubmitError(err.message || "Unknown error during submission.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const appRef = useRef();
+  useGSAP(() => { /* ... */ }, []);
+
+  return (
+    <>
+      <style>{`/* ... */`}</style>
+      <main ref={appRef} className="h-screen w-full flex bg-gradient-to-br from-[#00040a] to-[#020018] text-slate-100">
+        {/* The JSX and rendering logic remains identical */}
+      </main>
+    </>
+  );
+}
+
+
+

@@ -1,5 +1,14 @@
 iq_quotient/
 ├─ client/
+│  ├─ dist/
+│  │  ├─ assets/
+│  │  │  ├─ index-Dzp0fLgw.js
+│  │  │  └─ index-Lt5Y9c5M.css
+│  │  ├─ index.html
+│  │  ├─ realLogo.svg
+│  │  ├─ vector.svg
+│  │  ├─ veeeeeec.png
+│  │  └─ vite.svg
 │  ├─ public/
 │  │  ├─ realLogo.svg
 │  │  ├─ vector.svg
@@ -10,30 +19,45 @@ iq_quotient/
 │  │  │  └─ react.svg
 │  │  ├─ components/
 │  │  │  ├─ ui/
+│  │  │  │  ├─ accordion.jsx
+│  │  │  │  ├─ alert.jsx
+│  │  │  │  ├─ badge.jsx
 │  │  │  │  ├─ button.jsx
 │  │  │  │  ├─ card.jsx
-│  │  │  │  └─ input.jsx
+│  │  │  │  ├─ input.jsx
+│  │  │  │  ├─ label.jsx
+│  │  │  │  ├─ progress.jsx
+│  │  │  │  ├─ radio-group.jsx
+│  │  │  │  ├─ resizable.jsx
+│  │  │  │  ├─ scroll-area.jsx
+│  │  │  │  ├─ separator.jsx
+│  │  │  │  └─ textarea.jsx
 │  │  │  ├─ AnalysisChart.jsx
 │  │  │  └─ Navbar.jsx
 │  │  ├─ lib/
 │  │  │  └─ utils.js
 │  │  ├─ pages/
+│  │  │  ├─ Auth.jsx
 │  │  │  ├─ AutoResume.jsx
 │  │  │  ├─ CareerPathfinder.jsx
 │  │  │  ├─ FocusDetector.jsx
 │  │  │  ├─ Interview.jsx
 │  │  │  ├─ PracticeCoding.jsx
 │  │  │  ├─ SpeechToText.jsx
+│  │  │  ├─ Stats.jsx
 │  │  │  └─ TextToSpeechPlayer.jsx
 │  │  ├─ services/
-│  │  │  └─ api.js
+│  │  │  ├─ api.js
+│  │  │  └─ groq.js
 │  │  ├─ App.css
 │  │  ├─ App.jsx
 │  │  ├─ index.css
 │  │  ├─ main.jsx
 │  │  └─ Routings.jsx
+│  ├─ .env
 │  ├─ .gitignore
 │  ├─ eslint.config.js
+│  ├─ implementorcomponents.txt
 │  ├─ index.html
 │  ├─ package-lock.json
 │  ├─ package.json
@@ -56,8 +80,11 @@ iq_quotient/
 │  │  ├─ authRoutes.js
 │  │  └─ interviewRoutes.js
 │  ├─ .env
+│  ├─ .gitignore
 │  ├─ package-lock.json
 │  ├─ package.json
 │  └─ server.js
 ├─ .gitignore
-└─ README.md
+├─ iq-quotient.postman_collection.json
+├─ README.md
+└─ tree.txt

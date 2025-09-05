@@ -4,7 +4,6 @@ const cors = require("cors");
 const connectDB = require("./config/db");
 // server/server.js
 const app = express();
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 
 dotenv.config();
 connectDB();
@@ -23,6 +22,18 @@ app.use("/api/interviews", require("./routes/interviewRoutes"));
 
 // test route
 app.get("/", (req, res) => res.send("API is running..."));
+
+app.get("/api", (req, res) => {
+  res.json({
+    message: "Welcome to the API root",
+    endpoints: ["/api/auth", "/api/interviews", "/api/health"]
+  });
+});
+
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true, now: new Date().toISOString() });
+});
+
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

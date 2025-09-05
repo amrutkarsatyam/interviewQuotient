@@ -1,4 +1,13 @@
+// models/InterviewStats.js
 const mongoose = require("mongoose");
+
+const scoreSchema = new mongoose.Schema({
+  technicalAccuracy: { type: Number, default: 0 },
+  communicationClarity: { type: Number, default: 0 },
+  confidenceLevel: { type: Number, default: 0 },
+  timeManagement: { type: Number, default: 0 },
+  completeness: { type: Number, default: 0 },
+}, { _id: false });
 
 const interviewStatsSchema = new mongoose.Schema(
   {
@@ -7,28 +16,32 @@ const interviewStatsSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    codingScore: {
+    jobDescription: {
+      type: String,
+      default: "General",
+    },
+    focusPercent: {
       type: Number,
       default: 0,
     },
-    communicationScore: {
-      type: Number,
-      default: 0,
+    narrative: {
+      type: String,
+      default: "",
     },
-    focusScore: {
-      type: Number,
-      default: 0,
-    },
+    scores: scoreSchema,
     overallScore: {
       type: Number,
       default: 0,
     },
-    notes: {
-      type: String,
+    // Optional: store the full Q&A data
+    interviewData: {
+      type: Array,
+      default: [],
     },
   },
   { timestamps: true }
 );
+
 interviewStatsSchema.index({ user: 1, createdAt: -1 });
 
 module.exports = mongoose.model("InterviewStats", interviewStatsSchema);

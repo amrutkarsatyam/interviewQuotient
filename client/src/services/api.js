@@ -26,5 +26,9 @@ API.interceptors.response.use(
 export const register = (formData) => API.post("/auth/register", formData);
 export const login = (formData) => API.post("/auth/login", formData);
 
+// in services/api.js
+export const getProfile = () => API.get("/auth/profile");
+
+
 export const saveStats = (stats) => API.post("/interviews", stats);
 export const getStats = () => API.get("/interviews");
