@@ -1,20 +1,21 @@
-// controllers/interviewController.js
+// server/controllers/interviewController.js
 const InterviewStats = require("../models/InterviewStats");
+const User = require("../models/userModel");
 
-// @desc Save interview stats
-// @route POST /api/interviews
+// @desc   Save interview stats and update user profile
+// @route  POST /api/interviews
 // @access Private
 exports.saveStats = async (req, res) => {
   try {
-    const { jobDescription, focusPercent, narrative, scores, interviewData } = req.body;
+    const { jobDescription, focusPercent, narrative, scores, interviewData, strengths, weaknesses } = req.body;
 
-    // Calculate an overall score from the detailed scores
     const scoreValues = Object.values(scores);
     const overallScore = Math.round(
       scoreValues.reduce((sum, score) => sum + score, 0) / scoreValues.length
     );
 
-    const stats = await InterviewStats.create({
+    // Create the interview record
+    await InterviewStats.create({
       user: req.user._id,
       jobDescription,
       focusPercent,
@@ -30,23 +31,16 @@ exports.saveStats = async (req, res) => {
       interviewData,
     });
 
-    res.status(201).json(stats);
+    // Update the user's strengths and weaknesses
+    if (strengths && weaknesses) {
+      await User.findByIdAndUpdate(req.user._id, {
+        $set: { strengths, weaknesses },
+      });
+    }
+
+    res.status(201).json({ message: "Interview stats saved successfully." });
   } catch (error) {
     console.error("Error saving stats:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// @desc Get all stats for logged-in user
-// @route GET /api/interviews
-// @access Private
-exports.getStats = async (req, res) => {
-  try {
-    const stats = await InterviewStats.find({ user: req.user._id }).sort({
-      createdAt: -1,
-    });
-    res.json(stats);
-  } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
 };

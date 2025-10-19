@@ -32,3 +32,4 @@ dist-ssr
 .env
 server/.env
 client/.env
+*.txt

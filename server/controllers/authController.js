@@ -1,4 +1,5 @@
-const User = require("../models/User");
+// server/controllers/authController.js
+const User = require("../models/userModel");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 
@@ -20,8 +21,8 @@ exports.registerUser = async (req, res) => {
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-
     const user = await User.create({ name, email, password: hashedPassword });
+
     res.status(201).json({
       _id: user.id,
       name: user.name,
@@ -55,12 +56,15 @@ exports.loginUser = async (req, res) => {
   }
 };
 
-// @desc   Get profile
+// @desc   Get user profile (for strengths/weaknesses)
 // @route  GET /api/auth/profile
 // @access Private
 exports.getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: "Server error" });

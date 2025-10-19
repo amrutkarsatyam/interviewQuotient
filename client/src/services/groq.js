@@ -1,7 +1,7 @@
 // src/services/groq.js
 import Groq from "groq-sdk";
 
-const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
+const groqApiKey = import.meta.env.VITE_INTER_TOKEN;
 
 if (!groqApiKey) {
   console.warn("VITE_GROQ_API_KEY is not set. The interview component may not work.");
