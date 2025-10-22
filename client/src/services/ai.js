@@ -1,5 +1,5 @@
 // client/src/services/ai.js
-import groq from "../services/groq";
+import groq from "./groq";
 
 export const fetchQuestionsFromAI = async (jobDescription, interviewType) => {
   const prompt = `

@@ -1,3 +1,5 @@
+**
+
 - Developed a full-stack AI-powered interview training platform with scalable, modular architecture.
 
 – Implemented AI-driven simulations with domain-specific adaptive question generation.
@@ -9,3 +11,5 @@
 – Created personalized learning path recommending targeted practice areas.
 
 – Ensured secure architecture with JWT authentication.
+
+**
