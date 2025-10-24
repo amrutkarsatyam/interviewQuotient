@@ -44,6 +44,19 @@ const FinishedStage = ({ analysisResult, resetInterview }) => {
             </div>
           </div>
           
+          <div>
+            <h4 className="text-xl mb-2 text-indigo-700 font-bold">Resume Analysis</h4>
+            <p className="text-base text-slate-600 whitespace-pre-wrap">{analysisResult.resumeAnalysis}</p>
+          </div>
+
+          <div>
+            <h4 className="text-xl mb-2 text-indigo-700 font-bold">Personalized Roadmap</h4>
+            <p className="text-sm text-slate-500 mb-4">Actionable steps to guide your career path based on this interview.</p>
+            <ul className="space-y-2 text-base text-slate-700 list-disc list-inside">
+                {analysisResult.roadmap?.map((step, index) => <li key={index}>{step}</li>)}
+            </ul>
+          </div>
+
           <Button onClick={resetInterview} className="w-full text-lg font-bold bg-slate-600 text-white hover:bg-slate-700 py-3 h-auto">
             Start New Interview
           </Button>
